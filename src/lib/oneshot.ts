@@ -1,5 +1,4 @@
-// 1Shot only supports mainnet chains. On Base Sepolia testnet we simulate relay
-// so the full agent flow can be demoed without mainnet funds.
+// 1Shot public relayer — supports Base mainnet (8453)
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
 const IS_TESTNET = process.env.NEXT_PUBLIC_CHAIN_ID === '84532'
 

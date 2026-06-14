@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useWalletClient, useAccount } from 'wagmi'
 import { createWalletClient, custom } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 import { erc7715ProviderActions } from '@metamask/smart-accounts-kit/actions'
 import { PermissionContext, UserPreferences } from '@/lib/types'
 
@@ -34,7 +34,7 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
     try {
       const extendedClient = createWalletClient({
         account: walletClient.account,
-        chain: baseSepolia,
+        chain: base,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         transport: custom((window as any).ethereum!),
       }).extend(erc7715ProviderActions())
@@ -47,7 +47,7 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
 
       const result = await extendedClient.requestExecutionPermissions([
         {
-          chainId: baseSepolia.id,
+          chainId: base.id,
           to: walletClient.account.address,
           expiry: expirySeconds,
           permission: {
