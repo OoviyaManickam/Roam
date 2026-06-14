@@ -14,6 +14,10 @@ const TRANSFER_ABI = [
 
 const spendTracker = new Map<string, number>()
 
+function sessionKey(walletAddress: string, expiryTimestamp: number): string {
+  return `${walletAddress}:${expiryTimestamp}`
+}
+
 export function buildTransferCall(
   usdcAddress: `0x${string}`,
   toAddress: `0x${string}`,
@@ -28,22 +32,24 @@ export function buildTransferCall(
   return { to: usdcAddress, data, value: '0x0' }
 }
 
-export function trackSpend(walletAddress: string, amountUsdc: number): number {
-  const current = spendTracker.get(walletAddress) ?? 0
+export function trackSpend(walletAddress: string, amountUsdc: number, expiryTimestamp = 0): number {
+  const key = sessionKey(walletAddress, expiryTimestamp)
+  const current = spendTracker.get(key) ?? 0
   const updated = current + amountUsdc
-  spendTracker.set(walletAddress, updated)
+  spendTracker.set(key, updated)
   return updated
 }
 
-export function getTotalSpend(walletAddress: string): number {
-  return spendTracker.get(walletAddress) ?? 0
+export function getTotalSpend(walletAddress: string, expiryTimestamp = 0): number {
+  return spendTracker.get(sessionKey(walletAddress, expiryTimestamp)) ?? 0
 }
 
 export function isBudgetExceeded(
   walletAddress: string,
   amountUsdc: number,
-  budgetUsdc: number
+  budgetUsdc: number,
+  expiryTimestamp = 0
 ): boolean {
-  const current = spendTracker.get(walletAddress) ?? 0
+  const current = spendTracker.get(sessionKey(walletAddress, expiryTimestamp)) ?? 0
   return current + amountUsdc > budgetUsdc
 }

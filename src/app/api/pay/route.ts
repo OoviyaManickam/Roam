@@ -17,7 +17,7 @@ interface PayRequest {
 export async function POST(req: NextRequest) {
   const { activity, permissionContext }: PayRequest = await req.json()
 
-  if (isBudgetExceeded(permissionContext.accountAddress, activity.costUsdc, permissionContext.budgetUsdc)) {
+  if (isBudgetExceeded(permissionContext.accountAddress, activity.costUsdc, permissionContext.budgetUsdc, permissionContext.expiryTimestamp)) {
     publish({ type: 'payment_update', activityId: activity.id, status: 'failed' })
     return NextResponse.json({ error: 'Budget exceeded' }, { status: 400 })
   }
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       webhookUrl: `${APP_URL}/api/status?activityId=${activity.id}`,
     })
 
-    trackSpend(permissionContext.accountAddress, activity.costUsdc)
+    trackSpend(permissionContext.accountAddress, activity.costUsdc, permissionContext.expiryTimestamp)
 
     const serviceRes = await fetch(`${APP_URL}${endpoint}`, {
       method: 'POST',
