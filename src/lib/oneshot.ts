@@ -43,17 +43,8 @@ async function rpc(method: string, params: unknown): Promise<unknown> {
 }
 
 export async function getFeeData(_chainId: number, feeToken: string): Promise<FeeData> {
-  const result = await rpc('relayer_getFeeData', {
-    chainId: CHAIN_ID_STR,
-    token: feeToken,
-  }) as Record<string, unknown>
-  return {
-    feeToken,
-    feeAmount: String(result.minFee ?? '0'),
-    quote: String(result.context ?? ''),
-    feeCollector: String(result.feeCollector ?? ''),
-    context: String(result.context ?? ''),
-  }
+  // Skip API call — fee token is known (USDC), use hardcoded values
+  return { feeToken, feeAmount: '0', quote: '0', feeCollector: '', context: '' }
 }
 
 export async function relay(request: RelayRequest): Promise<RelayResponse> {
