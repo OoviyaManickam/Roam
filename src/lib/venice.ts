@@ -1,7 +1,13 @@
 import { UserPreferences, Itinerary } from './types'
 
-const VENICE_BASE_URL = 'https://api.venice.ai/api/v1'
-const MODEL = 'llama-3.3-70b'
+// Temporarily using Groq for testing — swap back to Venice for demo recording
+// Venice: https://api.venice.ai/api/v1 with VENICE_API_KEY
+// Groq:   https://api.groq.com/openai/v1 with GROQ_API_KEY
+const VENICE_BASE_URL = process.env.GROQ_API_KEY
+  ? 'https://api.groq.com/openai/v1'
+  : 'https://api.venice.ai/api/v1'
+const API_KEY = process.env.GROQ_API_KEY ?? process.env.VENICE_API_KEY
+const MODEL = process.env.GROQ_API_KEY ? 'llama-3.3-70b-versatile' : 'llama-3.3-70b'
 
 export async function* streamItinerary(
   prefs: UserPreferences
@@ -57,7 +63,7 @@ Keep total cost under budget. Space activities across the time window.`
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.VENICE_API_KEY}`,
+      Authorization: `Bearer ${API_KEY}`,
     },
     body: JSON.stringify({
       model: MODEL,
