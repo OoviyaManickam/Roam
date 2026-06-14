@@ -10,5 +10,12 @@ export function subscribe(fn: Listener) {
 }
 
 export function publish(event: SSEEvent) {
-  listeners.forEach((fn) => fn(event))
+  listeners.forEach((fn) => {
+    try {
+      fn(event)
+    } catch {
+      // stale subscriber — remove it
+      listeners.delete(fn)
+    }
+  })
 }
