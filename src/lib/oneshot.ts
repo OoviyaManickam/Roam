@@ -4,6 +4,9 @@ import { decodeDelegations } from '@metamask/smart-accounts-kit/utils'
 
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
 const CHAIN_ID_STR = process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532'
+const FEE_COLLECTOR = '0xE936e8FAf4A5655469182A49a505055B71C17604' as `0x${string}`
+const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
+const MIN_FEE = parseUnits('0.01', 6)
 
 export interface FeeData {
   feeToken: string
@@ -45,10 +48,7 @@ function toRelayerJson(value: unknown): unknown {
   return value
 }
 
-const FEE_COLLECTOR = '0xE936e8FAf4A5655469182A49a505055B71C17604' as `0x${string}`
-const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
-// minFee is $0.01 USDC = 10000 atoms
-const MIN_FEE = parseUnits('0.01', 6)(method: string, params: unknown): Promise<unknown> {
+async function rpc(method: string, params: unknown): Promise<unknown> {
   const res = await fetch(RELAYER_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -64,13 +64,11 @@ export async function getFeeData(_chainId: number, feeToken: string): Promise<Fe
 }
 
 export async function relay(request: RelayRequest): Promise<RelayResponse> {
-  // Decode the raw permission context string into delegation objects
   let delegations: unknown[]
   try {
     const decoded = decodeDelegations(request.permissionsContext as `0x${string}`)
     delegations = decoded.map((d) => toRelayerJson(d)) as unknown[]
   } catch {
-    // Fallback: try parsing as JSON array (old format)
     try {
       const parsed = JSON.parse(request.permissionsContext)
       delegations = Array.isArray(parsed) ? parsed.map(toRelayerJson) : [toRelayerJson(parsed)]
@@ -95,11 +93,7 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
       permissionContext: delegations,
       executions: [
         feeExecution,
-        {
-          target: call.to,
-          value: call.value,
-          data: call.data,
-        },
+        { target: call.to, value: call.value, data: call.data },
       ],
     })),
   }
