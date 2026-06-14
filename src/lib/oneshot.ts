@@ -1,6 +1,6 @@
-// 1Shot public relayer — supports Base mainnet (8453)
+// 1Shot testnet relayer — supports Base Sepolia (84532) at relayer.1shotapi.dev
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
-const IS_TESTNET = process.env.NEXT_PUBLIC_CHAIN_ID === '84532'
+const CHAIN_ID_STR = process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532'
 
 export interface FeeData {
   feeToken: string
@@ -41,36 +41,27 @@ async function rpc(method: string, params: unknown[]): Promise<unknown> {
   return json.result
 }
 
-function fakeHash(): string {
-  return '0x' + Array.from({ length: 64 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('')
-}
-
-export async function getFeeData(chainId: number, feeToken: string): Promise<FeeData> {
-  if (IS_TESTNET) {
-    return { feeToken, feeAmount: '0', quote: 'simulated' }
-  }
-  return rpc('relayer_getFeeData', [{ chainId, feeToken }]) as Promise<FeeData>
+export async function getFeeData(_chainId: number, feeToken: string): Promise<FeeData> {
+  // getFeeData API appears broken — use capabilities to get fee token, hardcode quote
+  return { feeToken, feeAmount: '0', quote: '0' }
 }
 
 export async function relay(request: RelayRequest): Promise<RelayResponse> {
-  if (IS_TESTNET) {
-    // Simulate a ~1s relay delay then return a fake confirmed tx
-    await new Promise((r) => setTimeout(r, 1200))
-    return {
-      id: `sim_${Date.now()}`,
-      status: 'confirmed',
-      txHash: fakeHash(),
-      simulated: true,
-    }
-  }
-  return rpc('relayer_send7710Transaction', [request]) as Promise<RelayResponse>
+  // Use string chainId and positional params as per 1Shot OpenRPC spec
+  const params = [
+    CHAIN_ID_STR,
+    request.feeToken,
+    {
+      from: request.from,
+      calls: request.calls,
+      permissionsContext: request.permissionsContext,
+      delegation: request.delegation,
+      webhookUrl: request.webhookUrl,
+    },
+  ]
+  return rpc('relayer_send7710Transaction', params) as Promise<RelayResponse>
 }
 
 export async function getStatus(id: string): Promise<RelayResponse> {
-  if (IS_TESTNET) {
-    return { id, status: 'confirmed', txHash: fakeHash(), simulated: true }
-  }
-  return rpc('relayer_getStatus', [{ id }]) as Promise<RelayResponse>
+  return rpc('relayer_getStatus', [id]) as Promise<RelayResponse>
 }
