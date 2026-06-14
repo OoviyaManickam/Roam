@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useWalletClient } from 'wagmi'
+import { useState, useEffect } from 'react'
+import { useWalletClient, useAccount } from 'wagmi'
 import { createWalletClient, custom } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { erc7715ProviderActions } from '@metamask/smart-accounts-kit/actions'
@@ -15,10 +15,19 @@ interface Props {
 export function PermissionGrant({ prefs, onGranted }: Props) {
   const [status, setStatus] = useState<'idle' | 'requesting' | 'granted' | 'error'>('idle')
   const [error, setError] = useState<string>('')
+  const [mounted, setMounted] = useState(false)
   const { data: walletClient } = useWalletClient()
+  const { isConnected } = useAccount()
+
+  useEffect(() => { setMounted(true) }, [])
 
   async function requestPermission() {
-    if (!walletClient) return
+    if (!mounted) return
+    if (!walletClient || !isConnected) {
+      setError('Wallet not connected. Please go back and connect MetaMask Flask.')
+      setStatus('error')
+      return
+    }
     setStatus('requesting')
     setError('')
 
@@ -69,6 +78,8 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
     }
   }
 
+  if (!mounted) return null
+
   return (
     <div className="flex flex-col items-center gap-4">
       {status === 'idle' && (
@@ -79,9 +90,14 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
           Sign Once & Start Roaming ✨
         </button>
       )}
+      {status === 'idle' && !isConnected && (
+        <p className="text-red-400 text-xs text-center">
+          Wallet not connected — go back and connect MetaMask Flask first
+        </p>
+      )}
       {status === 'requesting' && (
         <div className="text-violet-400 animate-pulse text-lg text-center">
-          Waiting for MetaMask...
+          Waiting for MetaMask Flask...
         </div>
       )}
       {status === 'granted' && (
