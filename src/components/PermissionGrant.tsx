@@ -43,6 +43,7 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
           expiry: expirySeconds,
           permission: {
             type: 'erc20-token-periodic',
+            isAdjustmentAllowed: false,
             data: {
               periodAmount: budgetMicro,
               periodDuration: expirySeconds - Math.floor(Date.now() / 1000),
