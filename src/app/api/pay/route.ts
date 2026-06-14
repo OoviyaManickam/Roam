@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Activity, PermissionContext } from '@/lib/types'
-import { buildTransferCall, trackSpend, isBudgetExceeded } from '@/lib/delegation'
+import { buildTransferCall, trackSpend } from '@/lib/delegation'
 import { getFeeData, relay } from '@/lib/oneshot'
 import { publish } from '@/lib/store'
 
@@ -16,11 +16,6 @@ interface PayRequest {
 
 export async function POST(req: NextRequest) {
   const { activity, permissionContext }: PayRequest = await req.json()
-
-  if (isBudgetExceeded(permissionContext.accountAddress, activity.costUsdc, permissionContext.budgetUsdc, permissionContext.expiryTimestamp)) {
-    publish({ type: 'payment_update', activityId: activity.id, status: 'failed' })
-    return NextResponse.json({ error: 'Budget exceeded' }, { status: 400 })
-  }
 
   if (Date.now() / 1000 > permissionContext.expiryTimestamp) {
     publish({ type: 'payment_update', activityId: activity.id, status: 'failed' })
