@@ -6,7 +6,7 @@ import { publish } from '@/lib/store'
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`
 const X402_FACILITATOR = '0xd3eBF3386dA80bCF26E3dBE3cF4f42332bbbcCEb' as `0x${string}`
-const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 84532)
+const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532', 10) || 84532
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
 interface PayRequest {
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, relay: relayResult, service: serviceData })
   } catch (err) {
+    console.error('[pay] error:', err)
     publish({ type: 'payment_update', activityId: activity.id, status: 'failed' })
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
