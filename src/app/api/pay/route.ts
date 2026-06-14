@@ -5,7 +5,7 @@ import { getFeeData, relay } from '@/lib/oneshot'
 import { publish } from '@/lib/store'
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`
-const X402_FACILITATOR = '0xd3eBF3386dA80bCF26E3dBE3cF4f42332bbbcCEb' as `0x${string}`
+const X402_FACILITATOR = '0xD3ebF3386Da80bCf26E3dbE3cF4F42332BBbccEB' as `0x${string}`
 const CHAIN_ID = parseInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532', 10) || 84532
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!
 
