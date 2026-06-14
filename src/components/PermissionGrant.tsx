@@ -64,7 +64,9 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
       ])
 
       const ctx: PermissionContext = {
-        permissionsContext: JSON.stringify(result),
+        permissionsContext: JSON.stringify(result, (_key, val) =>
+          typeof val === 'bigint' ? val.toString() : val
+        ),
         accountAddress: walletClient.account.address,
         budgetUsdc: prefs.budgetUsdc,
         expiryTimestamp: expirySeconds,
