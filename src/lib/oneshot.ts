@@ -1,4 +1,5 @@
 import { bytesToHex } from 'viem/utils'
+import { encodeFunctionData, erc20Abi, parseUnits } from 'viem'
 import { decodeDelegations } from '@metamask/smart-accounts-kit/utils'
 
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
@@ -44,7 +45,10 @@ function toRelayerJson(value: unknown): unknown {
   return value
 }
 
-async function rpc(method: string, params: unknown): Promise<unknown> {
+const FEE_COLLECTOR = '0xE936e8FAf4A5655469182A49a505055B71C17604' as `0x${string}`
+const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
+// minFee is $0.01 USDC = 10000 atoms
+const MIN_FEE = parseUnits('0.01', 6)(method: string, params: unknown): Promise<unknown> {
   const res = await fetch(RELAYER_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -75,11 +79,22 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
     }
   }
 
+  const feeExecution = {
+    target: USDC_ADDRESS,
+    value: '0x0',
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [FEE_COLLECTOR, MIN_FEE],
+    }),
+  }
+
   const payload = {
     chainId: CHAIN_ID_STR,
     transactions: request.calls.map((call) => ({
       permissionContext: delegations,
       executions: [
+        feeExecution,
         {
           target: call.to,
           value: call.value,
