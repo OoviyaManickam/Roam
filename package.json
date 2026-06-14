@@ -1,5 +1,5 @@
 {
-  "name": "roam-scaffold",
+  "name": "roam",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,17 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@metamask/delegation-toolkit": "^0.13.0",
+    "@metamask/smart-accounts-kit": "^1.6.0",
+    "@metamask/x402": "^0.2.0",
+    "@tanstack/react-query": "^5.101.0",
+    "@x402/core": "^2.15.0",
+    "framer-motion": "^12.40.0",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "viem": "^2.52.2",
+    "wagmi": "^3.6.16"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
