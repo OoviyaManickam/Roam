@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useConnect } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { PermissionGrant } from './PermissionGrant'
@@ -19,12 +19,16 @@ export function OnboardingForm() {
   const router = useRouter()
   const { address, isConnected } = useAccount()
   const { connect } = useConnect()
+  const [mounted, setMounted] = useState(false)
   const [city, setCity] = useState('')
   const [vibes, setVibes] = useState<Vibe[]>([])
   const [budget, setBudget] = useState('5')
   const [startTime, setStartTime] = useState('10:00')
   const [endTime, setEndTime] = useState('20:00')
   const [step, setStep] = useState<'form' | 'permission'>('form')
+
+  useEffect(() => { setMounted(true) }, [])
+  if (!mounted) return null
 
   const prefs: UserPreferences = {
     city,
