@@ -7,6 +7,9 @@ import { baseSepolia } from 'viem/chains'
 import { erc7715ProviderActions } from '@metamask/smart-accounts-kit/actions'
 import { PermissionContext, UserPreferences } from '@/lib/types'
 
+// 1Shot testnet targetAddress for Base Sepolia — from relayer_getCapabilities
+const ONESHOT_TARGET_ADDRESS = '0xf1ef956eff4181Ce913b664713515996858B9Ca9' as `0x${string}`
+
 interface Props {
   prefs: UserPreferences
   onGranted: (ctx: PermissionContext) => void
@@ -45,10 +48,11 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
       )
       const usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`
 
-      const result = await extendedClient.requestExecutionPermissions([
+      // `to` must be the 1Shot relayer targetAddress so it can redeem the delegation
+      const granted = await extendedClient.requestExecutionPermissions([
         {
           chainId: baseSepolia.id,
-          to: walletClient.account.address,
+          to: ONESHOT_TARGET_ADDRESS,
           expiry: expirySeconds,
           permission: {
             type: 'erc20-token-periodic',
@@ -63,10 +67,12 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
         },
       ])
 
+      // Store the raw context string — server will decode with decodeDelegations
+      const context = (granted as unknown as Array<{ context: string }>)[0]?.context
+        ?? JSON.stringify(granted, (_key, val) => typeof val === 'bigint' ? val.toString() : val)
+
       const ctx: PermissionContext = {
-        permissionsContext: JSON.stringify(result, (_key, val) =>
-          typeof val === 'bigint' ? val.toString() : val
-        ),
+        permissionsContext: context,
         accountAddress: walletClient.account.address,
         budgetUsdc: prefs.budgetUsdc,
         expiryTimestamp: expirySeconds,

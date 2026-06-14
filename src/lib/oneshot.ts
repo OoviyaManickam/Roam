@@ -1,4 +1,6 @@
-// 1Shot relayer — testnet: relayer.1shotapi.dev, mainnet: relayer.1shotapi.com
+import { bytesToHex } from 'viem/utils'
+import { decodeDelegations } from '@metamask/smart-accounts-kit/utils'
+
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
 const CHAIN_ID_STR = process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532'
 
@@ -6,8 +8,6 @@ export interface FeeData {
   feeToken: string
   feeAmount: string
   quote: string
-  feeCollector: string
-  context: string
 }
 
 export interface RelayRequest {
@@ -31,38 +31,54 @@ export interface RelayResponse {
   txHash?: string
 }
 
+function toRelayerJson(value: unknown): unknown {
+  if (value === null || value === undefined) return value
+  if (typeof value === 'bigint') return `0x${value.toString(16)}`
+  if (value instanceof Uint8Array) return bytesToHex(value)
+  if (Array.isArray(value)) return value.map(toRelayerJson)
+  if (typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = toRelayerJson(v)
+    return out
+  }
+  return value
+}
+
 async function rpc(method: string, params: unknown): Promise<unknown> {
   const res = await fetch(RELAYER_BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ method, params: [params], id: 1, jsonrpc: '2.0' }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   })
   const json = await res.json()
-  if (json.error) throw new Error(`1Shot RPC error: ${json.error.message}`)
+  if (json.error) throw new Error(`1Shot RPC error: [${json.error.code}] ${json.error.message}`)
   return json.result
 }
 
 export async function getFeeData(_chainId: number, feeToken: string): Promise<FeeData> {
-  // Skip API call — fee token is known (USDC), use hardcoded values
-  return { feeToken, feeAmount: '0', quote: '0', feeCollector: '', context: '' }
+  return { feeToken, feeAmount: '0', quote: '0' }
 }
 
 export async function relay(request: RelayRequest): Promise<RelayResponse> {
-  // permissionsContext is the JSON-stringified result from requestExecutionPermissions
-  // Parse it back to get the delegation chain array
-  let permissionContext: unknown[]
+  // Decode the raw permission context string into delegation objects
+  let delegations: unknown[]
   try {
-    const parsed = JSON.parse(request.permissionsContext)
-    // MetaMask returns an array of permission contexts
-    permissionContext = Array.isArray(parsed) ? parsed : [parsed]
+    const decoded = decodeDelegations(request.permissionsContext as `0x${string}`)
+    delegations = decoded.map((d) => toRelayerJson(d)) as unknown[]
   } catch {
-    throw new Error('Invalid permissionsContext — expected JSON array from MetaMask Flask')
+    // Fallback: try parsing as JSON array (old format)
+    try {
+      const parsed = JSON.parse(request.permissionsContext)
+      delegations = Array.isArray(parsed) ? parsed.map(toRelayerJson) : [toRelayerJson(parsed)]
+    } catch {
+      throw new Error('Invalid permissionsContext — cannot decode delegation chain')
+    }
   }
 
-  const taskId = await rpc('relayer_send7710Transaction', {
+  const payload = {
     chainId: CHAIN_ID_STR,
     transactions: request.calls.map((call) => ({
-      permissionContext,
+      permissionContext: delegations,
       executions: [
         {
           target: call.to,
@@ -71,21 +87,26 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
         },
       ],
     })),
-  }) as string
-
-  return {
-    id: taskId,
-    status: 'pending',
-    txHash: undefined,
   }
+
+  console.log('[1shot] submitting to', RELAYER_BASE, 'chainId:', CHAIN_ID_STR)
+  const taskId = await rpc('relayer_send7710Transaction', payload) as string
+  console.log('[1shot] taskId:', taskId)
+
+  return { id: taskId, status: 'pending' }
 }
 
 export async function getStatus(id: string): Promise<RelayResponse> {
   const result = await rpc('relayer_getStatus', { id, logs: false }) as Record<string, unknown>
   const receipt = result.receipt as Record<string, unknown> | undefined
+  const statusCode = result.status as number
+  let status: RelayResponse['status'] = 'pending'
+  if (statusCode === 200) status = 'confirmed'
+  else if (statusCode === 400 || statusCode === 500) status = 'failed'
+  else if (statusCode === 110) status = 'submitted'
   return {
     id,
-    status: result.status === 200 ? 'confirmed' : 'pending',
-    txHash: receipt?.transactionHash as string | undefined,
+    status,
+    txHash: receipt?.transactionHash as string | undefined ?? result.hash as string | undefined,
   }
 }
