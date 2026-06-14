@@ -34,7 +34,7 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
     try {
       const extendedClient = createWalletClient({
         account: walletClient.account,
-        chain: base,
+        chain: baseSepolia,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         transport: custom((window as any).ethereum!),
       }).extend(erc7715ProviderActions())
