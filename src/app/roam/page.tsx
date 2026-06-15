@@ -88,15 +88,54 @@ export default function RoamPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Start Venice agent once prefs are loaded
+  // Start Venice agent once prefs are loaded — read streaming response directly
   useEffect(() => {
     if (!prefs) return
     setIsStreaming(true)
-    fetch('/api/agent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prefs),
-    })
+
+    ;(async () => {
+      try {
+        const res = await fetch('/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(prefs),
+        })
+        if (!res.body) return
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue
+            try {
+              const event = JSON.parse(line.slice(6))
+              if (event.chunk) setAgentText((t) => t + event.chunk)
+              if (event.itinerary) {
+                setIsStreaming(false)
+                const acts = event.itinerary.activities
+                setActivities(acts)
+                activitiesRef.current = acts
+                acts.forEach((a: Activity) =>
+                  setStatuses((s) => ({ ...s, [a.id]: 'pending' }))
+                )
+                paymentQueue.current = [...acts]
+                processNextPayment()
+              }
+            } catch { /* ignore malformed lines */ }
+          }
+        }
+      } catch (err) {
+        console.error('[agent] stream error:', err)
+        setIsStreaming(false)
+      }
+    })()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs])
 
   async function processNextPayment() {

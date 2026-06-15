@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "src/app/api/stream/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/agent/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/pay/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}
