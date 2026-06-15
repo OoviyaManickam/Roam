@@ -37,7 +37,7 @@ Tell Roam your city, your vibe, and your budget. Sign one permission. Your AI ag
 
 **5. Payments fire automatically** — For each activity, `/api/pay` decodes the ERC-7710 delegation, prepends a USDC fee transfer to the 1Shot fee collector, and calls `relayer_send7710Transaction` on Base mainnet with a `destinationUrl` webhook. The relay returns a `taskId` immediately.
 
-**6. Status updates** — The browser polls `/api/relay-status` every 3 seconds while the transaction settles. On production, 1Shot also POSTs to `/api/status` at each state change (type 4 = submitted, type 0 = confirmed, type 1 = failed) — used as the authoritative source of truth for payment status.
+**6. Status updates** — The browser polls `/api/relay-status` every 3 seconds while the transaction settles. On production, 1Shot POSTs to `/api/status` at each state change (type 4 = submitted, type 0 = confirmed, type 1 = failed) — used as the authoritative source of truth for payment status.
 
 **7. Proof** — Every confirmed payment shows a Basescan link and a QR code. The downloadable itinerary includes the transaction hash per activity.
 
@@ -126,41 +126,103 @@ src/
 
 ---
 
-## Hackathon feedback
+## Smart Accounts Kit Usage
+
+### Advanced Permissions
+
+**Requesting Advanced Permissions (ERC-7715):**
+[`src/components/PermissionGrant.tsx`](https://github.com/OoviyaManickam/Roam/blob/main/src/components/PermissionGrant.tsx)
+
+`requestExecutionPermissions` is called with an `erc20-token-periodic` permission — scoped to the 1Shot target address, capped to the user's USDC budget, expiring at their chosen end time. MetaMask Flask 13.9+ atomically performs the EIP-7702 account upgrade inside this call.
+
+**Redeeming Advanced Permissions (ERC-7710 delegation decoding):**
+[`src/lib/delegation.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/lib/delegation.ts)
+
+The `permissionsContext` blob returned by Flask is decoded using `decodeDelegations()` from `@metamask/delegation-toolkit` before being passed to the 1Shot relayer.
+
+### Delegations
+
+**Creating the delegation:**
+[`src/components/PermissionGrant.tsx`](https://github.com/OoviyaManickam/Roam/blob/main/src/components/PermissionGrant.tsx)
+
+The ERC-7710 delegation is created by `requestExecutionPermissions` — the resulting `permissionsContext` is the signed delegation chain.
+
+**Redeeming the delegation:**
+[`src/app/api/pay/route.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/pay/route.ts)
+
+`/api/pay` decodes the delegation chain and submits it to the 1Shot relayer via `relayer_send7710Transaction`. The relayer redeems it on-chain — no signer required at payment time.
+
+### x402
+
+**x402 service endpoints (server):**
+[`src/app/api/services/`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/services)
+
+Mock x402-compatible service endpoints for food, coffee, and music — each verifies the `X-Payment` header before returning access.
+
+**x402 ERC-7710 asset transfer (client):**
+[`src/app/api/pay/route.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/pay/route.ts)
+
+Payment calls are structured as ERC-7710 executions — USDC transfer built via `buildTransferCall` in `src/lib/delegation.ts`, submitted through the 1Shot relayer using the signed delegation context.
+
+---
+
+## 1Shot API Usage
+
+**Relayer client — `relayer_send7710Transaction` + `relayer_getStatus`:**
+[`src/lib/oneshot.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/lib/oneshot.ts)
+
+All 1Shot API interactions — submitting 7710 transactions with `destinationUrl` for webhook callbacks, polling status, and resolving status codes (110 → submitted, 200 → confirmed, 400/500 → failed).
+
+**Payment submission with webhook:**
+[`src/app/api/pay/route.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/pay/route.ts)
+
+Calls `relay()` from `oneshot.ts` with `destinationUrl` set to `/api/status` on the deployed URL.
+
+**Webhook receiver:**
+[`src/app/api/status/route.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/status/route.ts)
+
+Receives 1Shot webhook POSTs. Parses type 0 (confirmed), type 4 (submitted), type 1 (failed) and updates payment status accordingly. Used as the authoritative source of truth for payment state on production.
+
+**Client-side relay status polling:**
+[`src/app/api/relay-status/route.ts`](https://github.com/OoviyaManickam/Roam/blob/main/src/app/api/relay-status/route.ts)
+
+Proxies `relayer_getStatus` to the browser for local development fallback.
+
+---
+
+## Hackathon Feedback
 
 ### MetaMask Smart Accounts Kit + ERC-7715
 
-The `requestExecutionPermissions` API was the core of this project — and the documentation around it was the hardest part of the build.
+The Smart Accounts Kit was central to this project and worked well overall.
 
-**EIP-7702 and MetaMask Flask 13.9+**
+One area that could be made clearer is the EIP-7702 flow. Initially, I assumed the account upgrade needed to be handled manually and spent some time exploring `signAuthorization()` before discovering that MetaMask Flask 13.9+ performs the upgrade automatically within `requestExecutionPermissions`.
 
-The docs don't clearly state that MetaMask Flask 13.9+ handles the EIP-7702 account upgrade *automatically* inside `requestExecutionPermissions`. We spent several hours attempting to call `walletClient.signAuthorization()` manually, which threw `AccountTypeNotSupportedError` — json-rpc accounts (MetaMask) don't support it directly. We then tried raw `eth_signAuthorization` via the provider, which returned `[object Object]` instead of a proper authorization object.
+A small note highlighting this behavior near the EIP-7702 documentation would help builders get started faster.
 
-The fix was simple: Flask handles it atomically, no manual signing needed. One sentence in the docs — *"Flask 13.9+ performs the EIP-7702 upgrade automatically inside requestExecutionPermissions"* — would have saved 2–3 hours. This is worth making prominent, ideally at the top of the EIP-7702 section.
-
-**The `permissionsContext` return shape**
-
-The object returned by `requestExecutionPermissions` doesn't have a documented TypeScript shape. We had to use runtime inspection to discover the context lives at `result[0].context` as an opaque hex blob, and that `decodeDelegations()` from `@metamask/delegation-toolkit` is needed to unpack it before passing it to a relayer. A code snippet showing how to extract and use the context with a relayer would remove this guesswork entirely.
-
-**`periodDuration` validation error**
-
-The error `InvalidInputRpcError: periodDuration must be > 0` surfaces with no further context when the user's chosen end time is already in the past. It's easy to hit during demos and testing. A guard in the SDK or a clearer message pointing to the cause (end time already elapsed) would make debugging faster.
+Another helpful addition would be a short example showing how to extract and decode the `permissionsContext` returned by `requestExecutionPermissions` before passing it to a relayer.
 
 ### 1Shot Permissionless Relayer
 
-The 1Shot documentation and the public relayer skills were the best part of this hackathon from a DX perspective. The JSON-RPC interface was clean, `relayer_send7710Transaction` worked exactly as documented, and the webhook shape (type 0/4/1 with `receipt.transactionHash`) was precise enough to implement against without guesswork.
+The 1Shot relayer was one of the smoothest parts of the build. The JSON-RPC interface was straightforward, `relayer_send7710Transaction` worked as expected, and the webhook payloads were easy to integrate.
 
-**One gap worth closing:** `destinationUrl` silently does nothing on localhost because there's no public URL for 1Shot to call back to. The webhook is dropped without any error or warning. We only discovered this after deploying to Vercel and noticing payments were updating on prod but stuck locally. A dev note — *"use ngrok or a similar tunnel for local webhook testing"* — alongside the `destinationUrl` docs would close this in five minutes.
+One suggestion would be to add a note that `destinationUrl` callbacks require a publicly accessible URL. During local development, a brief recommendation to use tools such as ngrok would make webhook testing easier.
 
-**Addresses in the quickstart:** The mainnet target address (`0x26a529124f0bbf9af9d8f9f84a43efe47cf1199a`) and the `EIP7702StatelessDeleGatorImpl` address (`0x63c0c19a282a1B52b07dD5a65b58948A07DAE32B`) on Base are buried inside `relayer_getCapabilities` — not mentioned in the main quickstart. Listing them directly for Base mainnet would save builders one round-trip of discovery.
+It would also be helpful if commonly used Base Mainnet addresses were surfaced directly in the quickstart documentation instead of only through `relayer_getCapabilities`.
 
-### Vercel + serverless architecture
+### Vercel Deployment
 
-A non-obvious issue when deploying: Next.js serverless functions are stateless and don't share memory across invocations. An in-memory pub/sub pattern (like an SSE store) works perfectly on localhost but silently breaks on Vercel because `/api/pay` and `/api/stream` run in separate function instances. The fix was to stream the agent response directly from the `/api/agent` route body and switch payment status updates to client-side polling of `/api/relay-status`. Worth documenting this pattern for anyone building agent + payment flows on serverless infrastructure.
+One challenge I encountered was adapting the architecture for Vercel's serverless environment, where functions do not share in-memory state.
 
-### Overall hackathon experience
+I eventually solved this by streaming responses directly from the agent route and moving transaction status updates to a dedicated endpoint. A short deployment guide covering this pattern could be useful for teams building agent-based applications with real-time updates.
 
-The track structure was well-defined and the technical bar was clear. The *Possible Directions* note in the 1Shot bounty — *"Projects that leverage the relayer webhooks as the source for transaction status updates will score higher"* — was genuinely useful signal that shaped architectural decisions early. More of that directional guidance in other tracks would help builders know what actually differentiates a submission versus just meeting the minimum bar.
+### Overall Experience
+
+The hackathon was well structured, and the technical requirements were clear.
+
+I especially appreciated the guidance in the 1Shot bounty around using webhooks as the source of truth for transaction status. That kind of directional feedback helped shape architectural decisions early and made it easier to understand what would strengthen a submission beyond the minimum requirements.
+
+Overall, the experience was excellent and gave me the opportunity to explore ERC-7715, EIP-7702, ERC-7710, and delegated execution patterns in a real-world application.
 
 ---
 
