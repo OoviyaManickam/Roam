@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useWalletClient, useAccount } from 'wagmi'
 import { createWalletClient, custom } from 'viem'
-import { baseSepolia } from 'viem/chains'
+import { base } from 'viem/chains'
 import { erc7715ProviderActions } from '@metamask/smart-accounts-kit/actions'
 import { PermissionContext, UserPreferences } from '@/lib/types'
 
-// 1Shot testnet targetAddress for Base Sepolia — from relayer_getCapabilities
-const ONESHOT_TARGET_ADDRESS = '0xf1ef956eff4181Ce913b664713515996858B9Ca9' as `0x${string}`
+// Base mainnet targetAddress — from relayer_getCapabilities for chainId 8453
+const ONESHOT_TARGET_ADDRESS = '0x26a529124f0bbf9af9d8f9f84a43efe47cf1199a' as `0x${string}`
 
 interface Props {
   prefs: UserPreferences
@@ -35,23 +35,25 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
     setError('')
 
     try {
+      // Flask 13.9+ automatically handles EIP-7702 upgrade inside requestExecutionPermissions
       const extendedClient = createWalletClient({
         account: walletClient.account,
-        chain: baseSepolia,
+        chain: base,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         transport: custom((window as any).ethereum!),
       }).extend(erc7715ProviderActions())
 
-      const budgetMicro = BigInt(Math.round(prefs.budgetUsdc * 1_000_000))
-      const expirySeconds = Math.floor(
-        new Date(`${new Date().toDateString()} ${prefs.endTime}`).getTime() / 1000
-      )
+      // Add 0.05 USDC headroom to cover 1Shot fees (0.01 per tx × up to 5 activities)
+      const budgetMicro = BigInt(Math.round((prefs.budgetUsdc + 0.05) * 1_000_000))
+      const [endH, endM] = prefs.endTime.split(':').map(Number)
+      const expiry = new Date()
+      expiry.setHours(endH, endM, 0, 0)
+      const expirySeconds = Math.floor(expiry.getTime() / 1000)
       const usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`
 
-      // `to` must be the 1Shot relayer targetAddress so it can redeem the delegation
       const granted = await extendedClient.requestExecutionPermissions([
         {
-          chainId: baseSepolia.id,
+          chainId: base.id,
           to: ONESHOT_TARGET_ADDRESS,
           expiry: expirySeconds,
           permission: {
@@ -67,7 +69,6 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
         },
       ])
 
-      // Store the raw context string — server will decode with decodeDelegations
       const context = (granted as unknown as Array<{ context: string }>)[0]?.context
         ?? JSON.stringify(granted, (_key, val) => typeof val === 'bigint' ? val.toString() : val)
 
@@ -93,30 +94,30 @@ export function PermissionGrant({ prefs, onGranted }: Props) {
       {status === 'idle' && (
         <button
           onClick={requestPermission}
-          className="w-full py-4 px-8 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-2xl text-lg transition-all"
+          className="w-full py-4 px-8 bg-black hover:bg-stone-800 text-white font-semibold rounded-2xl text-lg transition-all"
         >
-          Sign Once & Start Roaming ✨
+          Sign Once &amp; Start Roaming ✨
         </button>
       )}
       {status === 'idle' && !isConnected && (
-        <p className="text-red-400 text-xs text-center">
+        <p className="text-red-500 text-xs text-center">
           Wallet not connected — go back and connect MetaMask Flask first
         </p>
       )}
       {status === 'requesting' && (
-        <div className="text-violet-400 animate-pulse text-lg text-center">
+        <div className="text-stone-500 animate-pulse text-lg text-center">
           Waiting for MetaMask Flask...
         </div>
       )}
       {status === 'granted' && (
-        <div className="text-emerald-400 font-semibold text-lg text-center">
+        <div className="text-emerald-600 font-semibold text-lg text-center">
           ✅ Permission granted — agent is active
         </div>
       )}
       {status === 'error' && (
-        <div className="text-red-400 text-sm text-center">
+        <div className="text-red-500 text-sm text-center">
           <p className="mb-2">{error}</p>
-          <button onClick={() => setStatus('idle')} className="underline">
+          <button onClick={() => setStatus('idle')} className="underline text-stone-500 hover:text-black">
             Try again
           </button>
         </div>

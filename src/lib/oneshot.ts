@@ -3,9 +3,9 @@ import { encodeFunctionData, erc20Abi, parseUnits } from 'viem'
 import { decodeDelegations } from '@metamask/smart-accounts-kit/utils'
 
 const RELAYER_BASE = process.env.ONESHOT_RELAYER_URL!
-const CHAIN_ID_STR = process.env.NEXT_PUBLIC_CHAIN_ID ?? '84532'
+const CHAIN_ID_STR = process.env.NEXT_PUBLIC_CHAIN_ID ?? '8453'
 const FEE_COLLECTOR = '0xE936e8FAf4A5655469182A49a505055B71C17604' as `0x${string}`
-const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '0x036CbD53842c5426634e7929541eC2318f3dCF7e') as `0x${string}`
+const USDC_ADDRESS = (process.env.NEXT_PUBLIC_USDC_ADDRESS ?? '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') as `0x${string}`
 const MIN_FEE = parseUnits('0.01', 6)
 
 export interface FeeData {
@@ -26,7 +26,7 @@ export interface RelayRequest {
   permissionsContext: string
   feeToken: string
   feeQuote: string
-  webhookUrl?: string
+  destinationUrl?: string
 }
 
 export interface RelayResponse {
@@ -87,7 +87,7 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
     }),
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     chainId: CHAIN_ID_STR,
     transactions: request.calls.map((call) => ({
       permissionContext: delegations,
@@ -96,6 +96,11 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
         { target: call.to, value: call.value, data: call.data },
       ],
     })),
+  }
+
+  // Webhook URL for status updates — preferred over polling
+  if (request.destinationUrl) {
+    payload.destinationUrl = request.destinationUrl
   }
 
   console.log('[1shot] submitting to', RELAYER_BASE, 'chainId:', CHAIN_ID_STR)
@@ -107,15 +112,17 @@ export async function relay(request: RelayRequest): Promise<RelayResponse> {
 
 export async function getStatus(id: string): Promise<RelayResponse> {
   const result = await rpc('relayer_getStatus', { id, logs: false }) as Record<string, unknown>
+  console.log('[1shot] getStatus raw:', JSON.stringify(result))
   const receipt = result.receipt as Record<string, unknown> | undefined
   const statusCode = result.status as number
   let status: RelayResponse['status'] = 'pending'
   if (statusCode === 200) status = 'confirmed'
   else if (statusCode === 400 || statusCode === 500) status = 'failed'
   else if (statusCode === 110) status = 'submitted'
-  return {
-    id,
-    status,
-    txHash: receipt?.transactionHash as string | undefined ?? result.hash as string | undefined,
-  }
+  const txHash = receipt?.transactionHash as string | undefined
+    ?? result.hash as string | undefined
+    ?? result.txHash as string | undefined
+    ?? result.transactionHash as string | undefined
+  console.log('[1shot] resolved txHash:', txHash, 'statusCode:', statusCode)
+  return { id, status, txHash }
 }

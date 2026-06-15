@@ -28,7 +28,7 @@ export function buildPaymentRequired(
     accepts: [
       {
         scheme: 'exact',
-        network: 'base-sepolia',
+        network: 'base',
         maxAmountRequired: String(Math.round(priceUsdc * 1_000_000)),
         resource,
         description,

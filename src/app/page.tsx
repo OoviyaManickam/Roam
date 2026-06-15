@@ -71,18 +71,18 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-white">
-      {/* Video background */}
+      {/* Video background — fills bottom ~60% of viewport */}
       <video
         ref={videoRef}
         src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_083109_283f3553-e28f-428b-a723-d639c617eb2b.mp4"
         muted
         playsInline
-        className="absolute left-0 right-0 bottom-0 w-full h-auto object-cover"
-        style={{ top: '300px', opacity: 0 }}
+        className="absolute left-0 right-0 bottom-0 w-full object-cover"
+        style={{ top: '38vh', height: '62vh', opacity: 0 }}
       />
 
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-white via-transparent to-white pointer-events-none" style={{ zIndex: 1 }} />
+      {/* Narrow fade at top of video only — keeps landscape vivid */}
+      <div className="absolute inset-x-0 pointer-events-none" style={{ top: '38vh', height: '80px', background: 'linear-gradient(to bottom, white 0%, transparent 100%)', zIndex: 1 }} />
 
       {/* Nav */}
       <nav className="relative flex justify-between items-center px-8 py-6 max-w-7xl mx-auto" style={{ zIndex: 10 }}>
@@ -100,14 +100,14 @@ export default function Home() {
 
       {/* Hero */}
       <section
-        className="relative flex flex-col items-center justify-center text-center px-6 pb-40"
-        style={{ paddingTop: 'calc(8rem - 75px)', zIndex: 10 }}
+        className="relative flex flex-col items-center justify-center text-center px-6"
+        style={{ paddingTop: 'calc(8rem + 20px)', paddingBottom: '3rem', zIndex: 10 }}
       >
         <h1
           className="font-normal max-w-4xl"
           style={{
             fontFamily: 'Georgia, serif',
-            fontSize: 'clamp(4rem, 10vw, 7rem)',
+            fontSize: 'clamp(5rem, 13vw, 9rem)',
             lineHeight: 0.95,
             letterSpacing: '-2.46px',
             color: '#000',
@@ -118,7 +118,7 @@ export default function Home() {
         </h1>
 
         <p
-          className="text-base sm:text-lg max-w-xl mt-6 leading-relaxed"
+          className="text-base sm:text-lg max-w-xl mt-8 leading-relaxed"
           style={{
             color: '#6F6F6F',
             animation: 'fadeRise 0.8s ease-out 0.2s both',
@@ -127,9 +127,20 @@ export default function Home() {
           Set your vibe. Sign once. Just roam.
         </p>
 
+        {/* <p
+          className="text-sm sm:text-base max-w-4xl mt-4 leading-relaxed"
+          style={{
+            color: '#9A9A9A',
+            animation: 'fadeRise 0.8s ease-out 0.3s both',
+          }}
+        >
+          The best travel days aren&apos;t planned, they&apos;re felt. One permission grants Roam the freedom to act on your behalf.<br />
+          Roam translates your mood into a living itinerary, weaving together the city&apos;s best moments while your wallet handles the rest, silently and securely.
+        </p> */}
+
         <button
           onClick={handleConnect}
-          className="rounded-full text-base font-medium mt-12 transition-transform hover:scale-[1.03]"
+          className="rounded-full text-base font-medium mt-7 transition-transform hover:scale-[1.03]"
           style={{
             padding: '1.25rem 3.5rem',
             background: '#000',

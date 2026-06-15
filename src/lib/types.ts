@@ -1,4 +1,4 @@
-export type Vibe = 'street-food' | 'coffee' | 'live-music' | 'art' | 'markets'
+export type Vibe = 'street-food' | 'coffee' | 'live-music' | 'art' | 'markets' | 'rooftop-bars' | 'nature-walks' | 'bookshops' | 'museums' | 'nightlife' | 'brunch'
 
 export interface UserPreferences {
   city: string
