@@ -146,11 +146,54 @@ export default function RoamPage() {
     const next = paymentQueue.current.shift()!
     isPaying.current = true
 
-    await fetch('/api/pay', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activity: next, permissionContext: ctx }),
-    })
+    // Optimistically show paying state
+    setStatuses((s) => ({ ...s, [next.id]: 'paying' }))
+
+    try {
+      const res = await fetch('/api/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ activity: next, permissionContext: ctx }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.relay?.id) {
+        setStatuses((s) => ({ ...s, [next.id]: 'failed' }))
+        isPaying.current = false
+        processNextPayment()
+        return
+      }
+
+      const taskId = data.relay.id
+      // Poll relayer_getStatus from client until confirmed or failed
+      let attempts = 0
+      const poll = setInterval(async () => {
+        attempts++
+        try {
+          const statusRes = await fetch('/api/relay-status?taskId=' + taskId)
+          const statusData = await statusRes.json()
+          if (statusData.status === 'confirmed') {
+            clearInterval(poll)
+            if (statusData.txHash) setTxHashes((h) => ({ ...h, [next.id]: statusData.txHash }))
+            setStatuses((s) => ({ ...s, [next.id]: 'confirmed' }))
+            setSpent((s) => s + next.costUsdc)
+            isPaying.current = false
+            processNextPayment()
+          } else if (statusData.status === 'failed' || attempts >= 40) {
+            clearInterval(poll)
+            setStatuses((s) => ({ ...s, [next.id]: 'failed' }))
+            isPaying.current = false
+            processNextPayment()
+          } else if (statusData.txHash) {
+            setTxHashes((h) => ({ ...h, [next.id]: statusData.txHash }))
+          }
+        } catch { /* keep polling */ }
+      }, 3000)
+    } catch {
+      setStatuses((s) => ({ ...s, [next.id]: 'failed' }))
+      isPaying.current = false
+      processNextPayment()
+    }
   }
 
   if (!prefs || !permission) return null
